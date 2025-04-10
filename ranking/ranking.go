@@ -32,9 +32,9 @@ func (r Ranking) Merge(o Ranking) Ranking {
 	}
 	commonLength := min(r.ranks.Len(), o.ranks.Len())
 	totalLength := max(r.ranks.Len(), o.ranks.Len())
-	builder := immutable.NewListBuilder[NodeSet]()
+	builder := immutable.NewListBuilder[graph.NodeSet]()
 	for i := 0; i < commonLength; i++ {
-		builder.Append(MergeNodeSets(r.ranks.Get(i), o.ranks.Get(i)))
+		builder.Append(graph.MergeNodeSets(r.ranks.Get(i), o.ranks.Get(i)))
 	}
 	for i := commonLength; i < totalLength; i++ {
 		builder.Append(r.ranks.Get(i))
@@ -60,7 +60,7 @@ func (r Ranking) String() string {
 	return b.String()
 }
 
-func rankGraph(root *Node, visited graph.NodeSet) (Ranking, error) {
+func rankGraph(root *graph.Node, visited graph.NodeSet) (Ranking, error) {
 	if visited.Has(root) {
 		return Ranking{}, fmt.Errorf("loop detected: %v", root)
 	}
