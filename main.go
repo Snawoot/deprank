@@ -19,14 +19,6 @@ type Node struct {
 	Children []*Node
 }
 
-type NodeSet = immutable.Set[*Node]
-
-var nodeHasher = hasher.NewHasher[*Node]()
-
-func NewNodeSet(values ...*Node) NodeSet {
-	return immutable.NewSet(nodeHasher, values...)
-}
-
 func (n *Node) prettyWrite(prefix string, visited NodeSet, writer io.Writer) {
 	if visited.Has(n) {
 		fmt.Fprintf(writer, "%s... recursion goes to Node<Name=%q> ...\n", prefix, n.Name)
@@ -47,6 +39,27 @@ func (n *Node) String() string {
 	var b strings.Builder
 	n.prettyWrite("", NewNodeSet(), &b)
 	return b.String()
+}
+
+type NodeSet = immutable.Set[*Node]
+
+var nodeHasher = hasher.NewHasher[*Node]()
+
+func NewNodeSet(values ...*Node) NodeSet {
+	return immutable.NewSet(nodeHasher, values...)
+}
+
+func MergeNodeSets(a, b NodeSet) NodeSet {
+	// assume a is bigger or swap a and b otherwise
+	if b.Len() > a.Len() {
+		return MergeNodeSets(b, a)
+	}
+	itr := b.Iterator()
+	for !itr.Done() {
+		elem, _ := itr.Next()
+		a = a.Add(elem)
+	}
+	return a
 }
 
 type stringPair struct {
@@ -107,6 +120,57 @@ func ReadTree(from io.Reader, rootName *string) (*Node, error) {
 		return nil, errors.New("specified root node was not found")
 	}
 	return rootNode, nil
+}
+
+type Ranking struct {
+	ranks *immutable.List[NodeSet]
+}
+
+func NewRanking() Ranking {
+	return Ranking{
+		ranks: immutable.NewList[NodeSet](),
+	}
+}
+
+func (r Ranking) Append(n *Node) Ranking {
+	return Ranking{
+		ranks: r.ranks.Append(NewNodeSet(n)),
+	}
+}
+
+func (r Ranking) Merge(o Ranking) Ranking {
+	// assume r is greater or swap otherwise
+	if r.ranks.Len() < o.ranks.Len() {
+		return o.Merge(r)
+	}
+	commonLength := min(r.ranks.Len(), o.ranks.Len())
+	totalLength := max(r.ranks.Len(), o.ranks.Len())
+	builder := immutable.NewListBuilder[NodeSet]()
+	for i := 0; i < commonLength; i++ {
+		builder.Append(MergeNodeSets(r.ranks.Get(i), o.ranks.Get(i)))
+	}
+	for i := commonLength; i < totalLength; i++ {
+		builder.Append(r.ranks.Get(i))
+	}
+	return Ranking{
+		ranks: builder.List(),
+	}
+}
+
+func (r Ranking) String() string {
+	b := new(strings.Builder)
+	fmt.Fprintf(b, "Ranking<len=%d>:\n", r.ranks.Len())
+	itr := r.ranks.Iterator()
+	for !itr.Done() {
+		rank, nodeSet := itr.Next()
+		fmt.Fprintf(b, "\tRank %d:\n", rank)
+		setItr := nodeSet.Iterator()
+		for !setItr.Done() {
+			elem, _ := setItr.Next()
+			fmt.Fprintf(b, "\t\t%s\n", elem.Name)
+		}
+	}
+	return b.String()
 }
 
 var (
