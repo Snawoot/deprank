@@ -66,7 +66,7 @@ type stringPair struct {
 	a, b string
 }
 
-func ReadTree(from io.Reader, rootName *string) (*Node, error) {
+func ReadDAG(from io.Reader, rootName *string) (*Node, error) {
 	nameIdx := make(map[string]*Node)
 	seenEdges := make(map[stringPair]struct{})
 	scanner := bufio.NewScanner(from)
@@ -173,6 +173,30 @@ func (r Ranking) String() string {
 	return b.String()
 }
 
+func rankGraph(root *Node, visited NodeSet) (Ranking, error) {
+	if visited.Has(root) {
+		return Ranking{}, fmt.Errorf("loop detected: %v", root)
+	}
+	if root == nil {
+		return NewRanking(), nil
+	}
+	childrenRanking := NewRanking()
+	visited = visited.Add(root)
+	for _, child := range root.Children {
+		r, err := rankGraph(child, visited)
+		if err != nil {
+			return Ranking{}, err
+		}
+		childrenRanking = childrenRanking.Merge(r)
+	}
+	return childrenRanking.Append(root), nil
+}
+
+func RankGraph(root *Node) (Ranking, error) {
+	visited := NewNodeSet()
+	return rankGraph(root, visited)
+}
+
 var (
 	rootName *string
 )
@@ -197,10 +221,15 @@ func main() {
 }
 
 func run() error {
-	tree, err := ReadTree(os.Stdin, rootName)
+	dag, err := ReadDAG(os.Stdin, rootName)
 	if err != nil {
-		return fmt.Errorf("tree read failed: %w", err)
+		return fmt.Errorf("DAG read failed: %w", err)
 	}
-	fmt.Println(tree)
+
+	ranking, err := RankGraph(dag)
+	if err != nil {
+		return fmt.Errorf("DAG ranking failed: %w", err)
+	}
+	fmt.Println(ranking)
 	return nil
 }
