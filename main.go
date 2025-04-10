@@ -32,8 +32,13 @@ func (n *Node) String() string {
 	return b.String()
 }
 
+type stringPair struct {
+	a, b string
+}
+
 func ReadTree(from io.Reader, rootName *string) (*Node, error) {
 	nameIdx := make(map[string]*Node)
+	seenEdges := make(map[stringPair]struct{})
 	scanner := bufio.NewScanner(from)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -44,6 +49,12 @@ func ReadTree(from io.Reader, rootName *string) (*Node, error) {
 		a, b, found := strings.Cut(line, " ")
 		if !found {
 			return nil, fmt.Errorf("got line without space delimiter: %q", line)
+		}
+
+		if _, found := seenEdges[stringPair{a, b}]; found {
+			continue
+		} else {
+			seenEdges[stringPair{a,b}] = struct{}{}
 		}
 
 		src, found := nameIdx[a]
