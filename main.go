@@ -8,6 +8,10 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/benbjohnson/immutable"
+
+	"github.com/Snawoot/deprank/hasher"
 )
 
 type Node struct {
@@ -15,20 +19,33 @@ type Node struct {
 	Children []*Node
 }
 
-func (n *Node) prettyWrite(prefix string, writer io.Writer) {
+type NodeSet = immutable.Set[*Node]
+
+var nodeHasher = hasher.NewHasher[*Node]()
+
+func NewNodeSet(values ...*Node) NodeSet {
+	return immutable.NewSet(nodeHasher, values...)
+}
+
+func (n *Node) prettyWrite(prefix string, visited NodeSet, writer io.Writer) {
+	if visited.Has(n) {
+		fmt.Fprintf(writer, "%s... recursion goes to Node<Name=%q> ...\n", prefix, n.Name)
+		return
+	}
 	suffix := ""
 	if len(n.Children) > 0 {
 		suffix = ":"
 	}
 	fmt.Fprintf(writer, "%sNode<Name=%q>%s\n", prefix, n.Name, suffix)
+	visited = visited.Add(n)
 	for _, child := range n.Children {
-		child.prettyWrite(prefix+"\t", writer)
+		child.prettyWrite(prefix+"\t", visited, writer)
 	}
 }
 
 func (n *Node) String() string {
 	var b strings.Builder
-	n.prettyWrite("", &b)
+	n.prettyWrite("", NewNodeSet(), &b)
 	return b.String()
 }
 
@@ -54,7 +71,7 @@ func ReadTree(from io.Reader, rootName *string) (*Node, error) {
 		if _, found := seenEdges[stringPair{a, b}]; found {
 			continue
 		} else {
-			seenEdges[stringPair{a,b}] = struct{}{}
+			seenEdges[stringPair{a, b}] = struct{}{}
 		}
 
 		src, found := nameIdx[a]
